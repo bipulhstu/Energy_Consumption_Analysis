@@ -1,3 +1,4 @@
+
 # 🌍 Energy Consumption Analysis Project
 
 A comprehensive machine learning project analyzing global energy consumption patterns and predicting future energy usage using advanced regression models and data visualization techniques.
