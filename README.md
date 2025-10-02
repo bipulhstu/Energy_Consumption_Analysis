@@ -3,7 +3,22 @@
 
 A comprehensive machine learning project analyzing global energy consumption patterns and predicting future energy usage using advanced regression models and data visualization techniques.
 
+<div align="center">
+
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://energy-con.streamlit.app/)
+[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Scikit-Learn](https://img.shields.io/badge/Scikit--Learn-1.3+-orange.svg)](https://scikit-learn.org/)
+[![Plotly](https://img.shields.io/badge/Plotly-Interactive-lightblue.svg)](https://plotly.com/)
+
+</div>
+
+## 🚀 Live Demo
+**[🌐 Try the Interactive Dashboard](https://energy-con.streamlit.app/)**
+
+Experience the full analysis with interactive model testing, predictions, and visualizations!
+
 ## 📋 Table of Contents
+- [Live Demo](#live-demo)
 - [Project Overview](#project-overview)
 - [Dataset](#dataset)
 - [Project Structure](#project-structure)
@@ -96,6 +111,24 @@ Energy_Consumption_Analysis/
 ## 🖼️ Visualizations
 
 ### Generated Images (14 total)
+
+#### **📸 Sample Visualizations:**
+
+<div align="center">
+
+| Global Energy Trends | Top Energy Consumers |
+|:---:|:---:|
+| ![Global Energy Consumption](images/global_energy_consumption_over_time.png) | ![Top Countries](images/top_countries_energy_consumption.png) |
+
+| Energy Distribution | Correlation Analysis |
+|:---:|:---:|
+| ![Energy Distribution](images/energy_consumption_distribution.png) | ![Correlation Matrix](images/correlation_matrix.png) |
+
+| Model Performance | Feature Importance |
+|:---:|:---:|
+| ![Actual vs Predicted](images/actual_vs_predicted_gradientboosting.png) | ![Feature Importance](images/feature_importances_gradientboosting.png) |
+
+</div>
 
 #### **Exploratory Data Analysis Plots:**
 
@@ -233,12 +266,23 @@ Energy_Consumption_Analysis/
 
 ## 🚀 Installation & Usage
 
-### **Prerequisites:**
+### **🌐 Option 1: Try the Live Demo (Recommended)**
+**[🔗 Interactive Streamlit Dashboard](https://energy-con.streamlit.app/)**
+
+No installation required! Access the full interactive dashboard with:
+- Model testing and comparison
+- Real-time predictions
+- Interactive visualizations
+- Data exploration tools
+
+### **💻 Option 2: Local Installation**
+
+#### **Prerequisites:**
 ```bash
-pip install pandas numpy scikit-learn matplotlib seaborn plotly joblib
+pip install pandas numpy scikit-learn matplotlib seaborn plotly joblib streamlit
 ```
 
-### **Running the Analysis:**
+#### **Running the Analysis:**
 
 1. **Clone the repository:**
 ```bash
@@ -246,13 +290,14 @@ git clone <repository-url>
 cd Energy_Consumption_Analysis
 ```
 
-2. **Run the main analysis:**
+2. **Run the Streamlit app locally:**
 ```bash
-jupyter notebook Energy_Consumption_Analysis.ipynb
+streamlit run app.py
 ```
 
-3. **Run the improved modeling:**
+3. **Or run the Jupyter notebooks:**
 ```bash
+jupyter notebook Energy_Consumption_Analysis.ipynb
 jupyter notebook Improved_Energy_Consumption_Prediction.ipynb
 ```
 
