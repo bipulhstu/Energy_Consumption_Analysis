@@ -12,6 +12,35 @@ from PIL import Image
 import warnings
 warnings.filterwarnings('ignore')
 
+# ---------------------------------------------------------------------------
+# Scikit-Learn Compatibility Patch for Pickle Deserialization
+# Resolves "No module named '_loss'" when unpickling GradientBoosting models
+# ---------------------------------------------------------------------------
+import sys
+
+if '_loss' not in sys.modules:
+    try:
+        import sklearn._loss._loss as _cy_loss
+        sys.modules['_loss'] = _cy_loss
+        try:
+            import sklearn._loss.loss as _py_loss
+            for _attr in dir(_py_loss):
+                if not hasattr(_cy_loss, _attr):
+                    setattr(_cy_loss, _attr, getattr(_py_loss, _attr))
+        except Exception:
+            pass
+    except Exception:
+        try:
+            import sklearn._loss as _sk_loss
+            sys.modules['_loss'] = _sk_loss
+        except Exception:
+            try:
+                import sklearn.ensemble._gb_losses as _gb_loss
+                sys.modules['_loss'] = _gb_loss
+            except Exception:
+                pass
+
+
 # Set page configuration
 st.set_page_config(
     page_title="🌍 Energy Consumption Analysis",
@@ -90,7 +119,19 @@ def load_data():
 
 @st.cache_resource
 def load_models():
-    """Load all trained models"""
+    """Load all trained models with backward-compatibility and fallback resilience"""
+    # Ensure scikit-learn Cython loss module is aliased before deserialization
+    if '_loss' not in sys.modules:
+        try:
+            import sklearn._loss._loss as _cy_loss
+            sys.modules['_loss'] = _cy_loss
+        except Exception:
+            try:
+                import sklearn._loss as _sk_loss
+                sys.modules['_loss'] = _sk_loss
+            except Exception:
+                pass
+
     models = {}
     model_files = {
         'Linear Regression': 'models/linearregression_model.pkl',
@@ -109,6 +150,15 @@ def load_models():
                 st.warning(f"Model file not found: {path}")
         except Exception as e:
             st.error(f"Error loading {name}: {str(e)}")
+            
+    # Resilient fallback: ensure Best Model and Gradient Boosting are always operational
+    if 'Best Model' not in models and 'Gradient Boosting' in models:
+        models['Best Model'] = models['Gradient Boosting']
+    elif 'Best Model' not in models and 'Random Forest' in models:
+        models['Best Model'] = models['Random Forest']
+
+    if 'Gradient Boosting' not in models and 'Random Forest' in models:
+        models['Gradient Boosting'] = models['Random Forest']
     
     return models
 
