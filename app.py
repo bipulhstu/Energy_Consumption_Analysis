@@ -128,6 +128,17 @@ def load_model_performance():
         st.error(f"Error loading performance data: {str(e)}")
         return None
 
+
+def safe_render_image(col, image, caption=None):
+    """Render image safely across all Streamlit versions without crashing on use_column_width."""
+    try:
+        col.image(image, caption=caption, use_container_width=True)
+    except TypeError:
+        try:
+            col.image(image, caption=caption, use_container_width=True)
+        except TypeError:
+            col.image(image, caption=caption)
+
 def get_model_features(model_name, model=None):
     """Get the correct feature list for each model type"""
     # Base feature list (9 features)
@@ -280,9 +291,9 @@ def main():
     elif page == "📈 Model Comparison":
         show_model_comparison(performance_data)
     elif page == "🔮 Make Predictions":
-        show_prediction_page(models)
+        show_prediction_page(models, data)
     elif page == "🖼️ Visualizations":
-        show_visualizations()
+        show_visualizations(data)
 
 def show_home_page(data, models, performance_data):
     """Display the home page with project overview"""
@@ -639,19 +650,21 @@ def show_model_comparison(performance_data):
             st.info(f"🌳 **Tree Models Avg:** {avg_tree:.4f}")
             st.info(f"📏 **Linear Models Avg:** {avg_linear:.4f}")
 
-def show_prediction_page(models):
-    """Display prediction interface"""
-    st.markdown("## 🔮 Make Predictions")
+def show_prediction_page(models, data):
+    """Display prediction interface with manual parameters and Green Policy What-If Simulator"""
+    st.markdown("## 🔮 Energy Consumption Forecasting & Policy Simulator")
     
     if not models:
         st.error("No models loaded!")
         return
     
-    # Model selection
-    selected_model_name = st.selectbox("Select a model for prediction:", list(models.keys()))
-    selected_model = models[selected_model_name]
+    pred_tab1, pred_tab2 = st.tabs(["🔮 Custom Parameter Prediction", "🌿 Green Energy Policy 'What-If' Simulator"])
     
-    st.markdown(f"### Using: **{selected_model_name}**")
+    with pred_tab1:
+        # Model selection
+        selected_model_name = st.selectbox("Select a model for prediction:", list(models.keys()), key="manual_model_select")
+        selected_model = models[selected_model_name]
+        st.markdown(f"### Using: **{selected_model_name}**")
     
     # Input form
     st.markdown("### 📝 Input Parameters")
@@ -752,7 +765,184 @@ def show_prediction_page(models):
             st.error(f"Error making prediction: {str(e)}")
             st.info("Please check your input values and try again.")
 
-def show_visualizations():
+
+    with pred_tab2:
+        st.markdown("### 🌿 Green Energy Transition & Decarbonization Policy Lab")
+        st.caption("Simulate how policy interventions (expanding renewable share, reducing energy intensity, and GDP growth) alter future primary energy demand and mitigate fossil emissions.")
+        
+        if data is not None and 'country' in data.columns:
+            p_countries = sorted(data['country'].dropna().unique().tolist())
+            def_c_idx = p_countries.index("Bangladesh") if "Bangladesh" in p_countries else (p_countries.index("United States") if "United States" in p_countries else 0)
+            target_country = st.selectbox("Select Benchmark Country for Policy Simulation:", p_countries, index=def_c_idx, key="policy_country_select")
+            
+            c_records = data[data['country'] == target_country].dropna(subset=['primary_energy_consumption', 'gdp', 'population']).sort_values('year')
+            
+            if not c_records.empty:
+                base_rec = c_records.iloc[-1]
+                b_year = int(base_rec['year'])
+                b_pop = float(base_rec['population'])
+                b_gdp = float(base_rec['gdp'])
+                b_energy = float(base_rec['primary_energy_consumption'])
+                b_renew_pct = float(base_rec.get('renewables_share_energy', 10.0))
+                if np.isnan(b_renew_pct): b_renew_pct = 10.0
+                b_fossil = float(base_rec.get('fossil_fuel_consumption', b_energy * (1.0 - b_renew_pct/100.0)))
+                b_intensity = b_energy / (b_gdp / 1e9) if b_gdp > 0 else 0.1
+                b_per_cap = b_energy * 1000.0 / b_pop if b_pop > 0 else 50.0
+                
+                st.markdown(f"#### 📍 Current National Baseline ({target_country}, {b_year})")
+                bc1, bc2, bc3, bc4 = st.columns(4)
+                with bc1: st.metric("Primary Energy", f"{b_energy:,.1f} TWh")
+                with bc2: st.metric("Renewable Share", f"{b_renew_pct:.1f}%")
+                with bc3: st.metric("GDP", f"B")
+                with bc4: st.metric("Population", f"{b_pop/1e6:,.1f}M")
+                
+                st.markdown("#### 🎛️ Policy Simulation Levers (5-Year Horizon)")
+                pol_col1, pol_col2, pol_col3 = st.columns(3)
+                with pol_col1:
+                    renew_boost = st.slider("Target Renewable Share Increase (+%)", 0.0, 50.0, 15.0, 2.5)
+                with pol_col2:
+                    eff_improvement = st.slider("Energy Efficiency Target (% intensity reduction)", 0.0, 30.0, 10.0, 2.5)
+                with pol_col3:
+                    gdp_growth = st.slider("Projected Annual GDP Growth (%)", 0.0, 10.0, 4.0, 0.5)
+                    
+                target_model_name = "Gradient Boosting" if "Gradient Boosting" in models else list(models.keys())[0]
+                target_model = models[target_model_name]
+                
+                if st.button("🚀 Run Policy Simulation", type="primary", key="run_policy_sim_btn"):
+                    sim_year = b_year + 5
+                    sim_gdp = b_gdp * ((1.0 + gdp_growth/100.0) ** 5)
+                    sim_pop = b_pop * (1.01 ** 5)
+                    sim_gdp_per_cap = sim_gdp / sim_pop
+                    sim_renew_share = min(95.0, b_renew_pct + renew_boost)
+                    sim_intensity = b_intensity * (1.0 - eff_improvement/100.0)
+                    sim_fossil = max(0.0, b_fossil * (1.0 - renew_boost/100.0))
+                    sim_interaction = sim_gdp_per_cap * sim_renew_share
+                    sim_per_cap = b_per_cap * (1.0 - eff_improvement/100.0)
+                    
+                    features = get_model_features(target_model_name, target_model)
+                    sim_input_vals = [
+                        sim_year,
+                        np.log1p(sim_pop),
+                        np.log1p(sim_gdp),
+                        sim_per_cap,
+                        sim_renew_share,
+                        sim_fossil,
+                        np.log1p(sim_gdp_per_cap),
+                        sim_intensity,
+                        sim_interaction
+                    ]
+                    if 'population_density' in features:
+                        sim_input_vals.insert(-1, 100.0)
+                        
+                    sim_pred = target_model.predict(np.array([sim_input_vals]))[0]
+                    
+                    st.markdown("### 📊 Simulated Policy Outcomes")
+                    res_c1, res_c2, res_c3 = st.columns(3)
+                    with res_c1:
+                        delta_energy = sim_pred - b_energy
+                        st.metric("Projected Total Energy", f"{sim_pred:,.1f} TWh", delta=f"{delta_energy:+,.1f} TWh")
+                    with res_c2:
+                        clean_gen = sim_pred * (sim_renew_share / 100.0)
+                        st.metric("Clean Energy Output", f"{clean_gen:,.1f} TWh", delta=f"{sim_renew_share:.1f}% Share")
+                    with res_c3:
+                        avoided_fossil_twh = max(0.0, (b_energy * (1.0 - b_renew_pct/100.0)) - (sim_pred * (1.0 - sim_renew_share/100.0)))
+                        avoided_co2_mt = avoided_fossil_twh * 0.72
+                        st.metric("Avoided CO₂ Emissions", f"{avoided_co2_mt:,.1f} Mt CO₂", delta="Annual Abatement", delta_color="normal")
+                        
+                    fig_comp = go.Figure(data=[
+                        go.Bar(name='Historical Baseline', x=['Primary Energy', 'Clean Energy', 'Fossil Energy'],
+                               y=[b_energy, b_energy * (b_renew_pct/100.0), b_energy * (1.0 - b_renew_pct/100.0)],
+                               marker_color=['#3498db', '#2ecc71', '#e74c3c']),
+                        go.Bar(name='5-Year Policy Scenario', x=['Primary Energy', 'Clean Energy', 'Fossil Energy'],
+                               y=[sim_pred, clean_gen, sim_pred * (1.0 - sim_renew_share/100.0)],
+                               marker_color=['#2980b9', '#27ae60', '#c0392b'])
+                    ])
+                    fig_comp.update_layout(
+                        barmode='group',
+                        title="Baseline vs. Policy Scenario Comparison (TWh)",
+                        plot_bgcolor="rgba(0,0,0,0)",
+                        height=380
+                    )
+                    st.plotly_chart(fig_comp, use_container_width=True)
+            else:
+                st.info(f"Insufficient baseline records for {target_country} to run simulation.")
+        else:
+            st.warning("Dataset unavailable for policy simulator.")
+
+def show_visualizations(data):
+    """Display saved visualizations and interactive country transition explorer"""
+    st.markdown("## 🖼️ Energy Transitions & Visual Analytics")
+    
+    # 1. Interactive Country Energy Transition Explorer
+    if data is not None and 'country' in data.columns and 'year' in data.columns:
+        st.markdown("### 🌐 Interactive Country Energy Transition Explorer")
+        st.caption("Analyze multi-decade fuel stack transitions from the 22,012-row World Energy Consumption dataset:")
+        
+        country_counts = data['country'].value_counts()
+        eligible_countries = sorted(country_counts[country_counts >= 15].index.tolist())
+        
+        default_idx = 0
+        if "Bangladesh" in eligible_countries:
+            default_idx = eligible_countries.index("Bangladesh")
+        elif "United States" in eligible_countries:
+            default_idx = eligible_countries.index("United States")
+            
+        selected_c = st.selectbox("Select Country to Explore:", eligible_countries, index=default_idx)
+        c_df = data[data['country'] == selected_c].sort_values('year')
+        
+        # Summary metrics
+        valid_energy = c_df.dropna(subset=['primary_energy_consumption'])
+        if not valid_energy.empty:
+            latest_c = valid_energy.iloc[-1]
+            c_col1, c_col2, c_col3, c_col4 = st.columns(4)
+            with c_col1: st.metric("Latest Year Reported", int(latest_c['year']))
+            with c_col2:
+                p_energy = latest_c.get('primary_energy_consumption', 0)
+                st.metric("Primary Energy", f"{p_energy:,.1f} TWh" if pd.notnull(p_energy) else "N/A")
+            with c_col3:
+                r_share = latest_c.get('renewables_share_energy', 0)
+                st.metric("Renewable Share", f"{r_share:.1f}%" if pd.notnull(r_share) else "N/A")
+            with c_col4:
+                f_share = latest_c.get('fossil_share_energy', 100.0 - r_share if pd.notnull(r_share) else 0)
+                st.metric("Fossil Share", f"{f_share:.1f}%" if pd.notnull(f_share) else "N/A")
+                
+            fig_mix = go.Figure()
+            if 'fossil_fuel_consumption' in c_df.columns:
+                fig_mix.add_trace(go.Scatter(
+                    x=c_df['year'], y=c_df['fossil_fuel_consumption'],
+                    mode='lines', name='Fossil Fuels (Coal, Oil, Gas)',
+                    line=dict(color='#e74c3c', width=2.2)
+                ))
+            if 'renewables_consumption' in c_df.columns:
+                fig_mix.add_trace(go.Scatter(
+                    x=c_df['year'], y=c_df['renewables_consumption'],
+                    mode='lines', name='Renewables (Solar, Wind, Hydro)',
+                    line=dict(color='#2ecc71', width=2.2)
+                ))
+            if 'nuclear_consumption' in c_df.columns:
+                fig_mix.add_trace(go.Scatter(
+                    x=c_df['year'], y=c_df['nuclear_consumption'],
+                    mode='lines', name='Nuclear Energy',
+                    line=dict(color='#9b59b6', width=2.0)
+                ))
+            if 'primary_energy_consumption' in c_df.columns:
+                fig_mix.add_trace(go.Scatter(
+                    x=c_df['year'], y=c_df['primary_energy_consumption'],
+                    mode='lines', name='Total Primary Energy',
+                    line=dict(color='#3498db', width=2.5, dash='dash')
+                ))
+            fig_mix.update_layout(
+                title=f"{selected_c}: Long-Term Fuel Mix Evolution (TWh)",
+                xaxis_title="Year",
+                yaxis_title="Energy Consumption (TWh)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                hovermode="x unified",
+                height=420
+            )
+            st.plotly_chart(fig_mix, use_container_width=True)
+            st.markdown("---")
+
+    # Check if images directory exists
     """Display saved visualizations"""
     st.markdown("## 🖼️ Project Visualizations")
     
@@ -789,8 +979,7 @@ def show_visualizations():
                     
                     try:
                         image = Image.open(img_path)
-                        col.image(image, caption=img_file.replace('_', ' ').replace('.png', '').title(), 
-                                use_column_width=True)
+                        safe_render_image(col, image, img_file.replace('_', ' ').replace('.png', '').title())
                     except Exception as e:
                         col.error(f"Error loading {img_file}: {str(e)}")
     
@@ -808,8 +997,7 @@ def show_visualizations():
                     
                     try:
                         image = Image.open(img_path)
-                        col.image(image, caption=img_file.replace('_', ' ').replace('.png', '').title(), 
-                                use_column_width=True)
+                        safe_render_image(col, image, img_file.replace('_', ' ').replace('.png', '').title())
                     except Exception as e:
                         col.error(f"Error loading {img_file}: {str(e)}")
     

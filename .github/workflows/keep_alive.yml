@@ -1,0 +1,60 @@
+name: Keep Streamlit App Alive
+
+on:
+  push:
+    branches: [ main ]
+  schedule:
+    # Runs every 8 hours (00:00, 08:00, 16:00 UTC) to prevent the 12-hour idle sleep threshold
+    - cron: '0 */8 * * *'
+  workflow_dispatch: # Allows manual one-click testing from GitHub Actions tab
+
+jobs:
+  keep_alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Playwright & Headless Chromium
+        run: |
+          pip install playwright
+          playwright install chromium --with-deps
+
+      - name: Wake Streamlit App in Headless Browser
+        run: |
+          python -c "
+          from playwright.sync_api import sync_playwright
+          import time
+
+          app_url = 'https://energy-con.streamlit.app/'
+
+          with sync_playwright() as p:
+              browser = p.chromium.launch(headless=True)
+              context = browser.new_context(
+                  user_agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+              )
+              page = context.new_page()
+
+              print(f'[*] Navigating to: {app_url}')
+              try:
+                  response = page.goto(app_url, wait_until='networkidle', timeout=90000)
+                  # Give Streamlit WebSocket time to establish connection
+                  time.sleep(15)
+
+                  # Check if app is asleep and click wake button if present
+                  wake_btn = page.locator('text=\"Yes, get this app back up!\"')
+                  if wake_btn.count() > 0:
+                      print('[*] Sleeping app detected! Clicking wake button...')
+                      wake_btn.first.click()
+                      time.sleep(15)
+
+                  title = page.title()
+                  print(f'[+] Successfully loaded {app_url} - Title: {title}')
+              except Exception as e:
+                  print(f'[-] Warning/notice visiting {app_url}: {e}')
+
+              browser.close()
+              print('[✓] Finished keep-alive check successfully.')
+          "
